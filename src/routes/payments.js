@@ -3,6 +3,29 @@ const router = express.Router();
 const db = require('../models/db');
 const pdf = require('pdfkit');
 
+const twilio = require('twilio');
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN); // Replace with your Twilio credentials
+
+
+const sendWhatsAppNotification = async (studentName, amountPaid, paymentDate) => {
+    const message = `Fee Payment Received:
+    Student: ${studentName}
+    Amount: ₹${amountPaid}
+    Date: ${new Date(paymentDate).toLocaleDateString()}`;
+
+    try {
+        await client.messages.create({
+            from: 'whatsapp:+14155238886', // Twilio sandbox number
+            to: 'whatsapp:+919872948301', // Replace with your verified phone number
+            body: message,
+        });
+        console.log('WhatsApp notification sent successfully!');
+    } catch (error) {
+        console.error('Failed to send WhatsApp notification:', error.message);
+    }
+};
+
+
 // Get all payments
 router.get('/', (req, res) => {
     const sql = `
@@ -85,6 +108,8 @@ router.post('/', async (req, res) => {
 
     try {
         const receiptNumber = await generateReceiptNumber(db);
+
+        // Insert payment record
         const sql = `
             INSERT INTO Payments (fee_id, student_id, payment_date, payment_mode, amount_paid, receipt_number)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -97,11 +122,24 @@ router.post('/', async (req, res) => {
             amount_paid,
             receiptNumber,
         ]);
+
+        // Fetch student name for the notification
+        const studentQuery = `
+            SELECT name FROM Students WHERE student_id = ?
+        `;
+        const [studentResult] = await db.promise().query(studentQuery, [student_id]);
+        const studentName = studentResult[0]?.name || 'Unknown';
+
+        // Send WhatsApp notification
+        await sendWhatsAppNotification(studentName, amount_paid, payment_date);
+
         res.status(201).json({ message: 'Payment added successfully', receiptNumber });
     } catch (err) {
+        console.error('Error adding payment:', err);
         res.status(500).json({ error: 'Failed to add payment.' });
     }
 });
+
 
 // Generate a unique receipt number
 const generateReceiptNumber = async (db) => {
