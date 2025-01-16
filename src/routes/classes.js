@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../models/db');
+const db = require('../models/db');
 
 // Get all classes
 router.get('/:id', (req, res) => {
     const { id } = req.params;
     const sql = 'SELECT class_description FROM Classes WHERE class_id = ?';
 
-    pool.query(sql, [id], (err, results) => {
+    db.query(sql, [id], (err, results) => {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).json({ error: err.message });
